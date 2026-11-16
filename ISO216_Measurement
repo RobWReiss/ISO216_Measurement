@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The A-Paper Ruler</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--mute:#6b6a64;--line:#dedcd4;--acc:#b3261e;--accbg:#fbeae8;--ok:#1f7a4d}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--card:#211f1d;--ink:#f0eee8;--mute:#9a978e;--line:#38352f;--acc:#ff8a80;--accbg:#3a2220;--ok:#6fcf9b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px 16px 60px}
+main{max-width:760px;margin:0 auto}
+h1{font-size:2rem;margin:0 0 4px;letter-spacing:-.02em}
+h2{font-size:1.15rem;margin:0 0 10px}
+.sub{color:var(--mute);margin:0 0 22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+label{display:block;font-size:.8rem;color:var(--mute);margin-bottom:4px}
+input,select,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+input[type=number]{width:170px}
+button{background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#1b0f0e}}
+button.alt{background:var(--bg);color:var(--ink);border-color:var(--line)}
+.check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:.92rem}
+.check input{width:auto}
+.big{font-size:1.7rem;font-weight:700;font-variant-numeric:tabular-nums;word-break:break-word;margin:4px 0 12px}
+.bar{display:flex;height:26px;border-radius:7px;overflow:hidden;border:1px solid var(--line);margin:6px 0 14px}
+.bar span{min-width:2px}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600;font-size:.8rem}
+tfoot td{font-weight:700;border-bottom:0}
+.err{background:var(--accbg);color:var(--acc);padding:10px 12px;border-radius:9px}
+.note{color:var(--mute);font-size:.88rem}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;max-height:220px;overflow:auto}
+.chips span{background:var(--accbg);color:var(--acc);border-radius:6px;padding:1px 7px;font-size:.82rem;font-variant-numeric:tabular-nums}
+code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:0 5px;font-size:.88em}
+details{margin-top:8px}
+summary{cursor:pointer;font-weight:600}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px;margin:12px 0}
+.grid div{border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--bg)}
+.grid b{display:block;font-size:.9rem}.grid small{color:var(--mute);font-size:.75rem}
+.grid input{width:100%;margin-top:5px;padding:6px 8px}
+.units{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<main>
+<h1>The A-Paper Ruler</h1>
+<p class="sub">Any length, expressed as the fewest long edges of ISO 216 A-series paper.</p>
+
+<section class="card">
+  <h2>Measure something</h2>
+  <div class="row">
+    <div><label for="len">Length</label><input id="len" type="number" min="1" step="any" value="11342"></div>
+    <div><label for="unit">Unit</label>
+      <select id="unit"><option value="1">mm</option><option value="10">cm</option><option value="1000">m</option><option value="25.4">inches</option><option value="304.8">feet</option></select></div>
+    <div><label for="method">Method</label>
+      <select id="method"><option value="dp">Dynamic programming</option><option value="bb">Branch &amp; bound</option></select></div>
+    <button id="go">Calculate</button>
+  </div>
+  <label class="check"><input type="checkbox" id="ext"> Extend the system to A11, A12 and A13 (theoretical, folded sizes)</label>
+  <div id="out" style="margin-top:18px"></div>
+</section>
+
+<section class="card">
+  <h2>Sheets to length</h2>
+  <p class="note" style="margin-top:0">The other way round: say how many sheets of each size you have, laid end to end by their long edges, and get the total length.</p>
+  <div class="row" style="margin-bottom:6px">
+    <div style="flex:1;min-width:220px"><label for="paste">Or paste notation, e.g. A(-2×4, -1×1, 6×1)</label><input id="paste" type="text" style="width:100%" placeholder="A(0×2, 3×1, 4×2)"></div>
+    <button class="alt" id="load">Load</button>
+    <button class="alt" id="clear">Clear</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div id="rout"></div>
+</section>
+
+<section class="card">
+  <h2>Which lengths are impossible?</h2>
+  <p class="note" style="margin-top:0">Lists every whole-millimetre length in a range that can’t be made from the available sheets. Uses the “extend to A13” setting above.</p>
+  <div class="row">
+    <div><label for="from">From (mm)</label><input id="from" type="number" min="1" value="1"></div>
+    <div><label for="to">To (mm)</label><input id="to" type="number" min="1" value="1000"></div>
+    <button class="alt" id="batch">Find impossible lengths</button>
+  </div>
+  <div id="bout" style="margin-top:14px"></div>
+</section>
+
+<section class="card">
+  <h2>How it works</h2>
+  <p>Everyone has an A4 sheet somewhere, and A-series paper is defined by ISO 216, so its dimensions are the same everywhere. Fold a sheet in half and you get the next size down (A4 → A5 → A6 …). Join sheets together and you can build the bigger sizes (2A0 and 4A0). Every size has a known long edge, so any length can be written as a sum of those edges.</p>
+  <div class="tblwrap"><table id="sizes"></table></div>
+  <p><b>Finding the fewest sheets.</b> This is a cousin of the Frobenius coin problem: the sheet lengths are the “coins” and the length you want is the “amount”. Two methods are included:</p>
+  <ul>
+    <li><b>Dynamic programming.</b> For every length from 1 up to your target, it works out the smallest number of sheets that makes exactly that length, building on the answers for shorter lengths. Then it walks back from the target to see which sheets were used. This always finds a minimum, and is fast for any length you’d realistically measure.</li>
+    <li><b>Branch &amp; bound.</b> Tries the biggest sheets first, then backs off one sheet at a time and moves on to the next size down, throwing away any attempt that already uses as many sheets as the best answer so far. Also exact, but slower on very large lengths (this page stops it after a few million attempts).</li>
+  </ul>
+  <p class="note">The original Python had three solvers, but the “full” and “memory-efficient” versions do the same sum and always give the same answer, so they’re combined here as one.</p>
+  <p><b>Reading the answer.</b> <code>A(-2×4, -1×1, 6×1)</code> means four sheets of size −2 (4A0), one of size −1 (2A0) and one of size 6 (A6). Sizes are shown in the same numbering as the code, where 0 is A0, −1 is 2A0 and −2 is 4A0.</p>
+  <p><b>Going backwards.</b> The “Sheets to length” tool simply multiplies each size’s long edge by the number of sheets and adds them up. You can paste an answer from the calculator straight into it to check the sum.</p>
+  <p><b>Impossible lengths.</b> The smallest sheet in the standard is A10 at 37&nbsp;mm, so nothing shorter can be made, and a patchwork of gaps remains above that. Since the sheet lengths share no common factor above 1, there is a point past which every length works: with sizes 4A0 to A10 it is above 695&nbsp;mm. Including the folded sizes A11 (26&nbsp;mm), A12 (18&nbsp;mm) and A13 (13&nbsp;mm) closes the gaps for everything above 100&nbsp;mm. Use the tool above to see the exact gaps.</p>
+  <p class="note">Lengths are rounded to the nearest whole millimetre, as the paper sizes are themselves rounded to whole millimetres. Real-world accuracy depends on your folding.</p>
+</section>
+</main>
+
+<script>
+const BASE={'-2':2378,'-1':1682,0:1189,1:841,2:594,3:420,4:297,5:210,6:148,7:105,8:74,9:52,10:37};
+const EXTRA={11:26,12:18,13:13};
+const COLORS=['#b3261e','#d9682b','#e0a526','#7aa22f','#2f9a6b','#2a8aa6','#3b6fcf','#6a55c9','#a14fb5','#c44a86','#8c6e54','#667','#999','#555','#bbb'];
+const $=id=>document.getElementById(id);
+const sizesFor=ext=>Object.entries(ext?{...BASE,...EXTRA}:BASE).map(([k,v])=>[+k,v]).sort((a,b)=>a[0]-b[0]);
+const name=n=>n<0?(n===-2?'4A0':'2A0'):'A'+n;
+const fmt=counts=>'A('+counts.map(([s,c])=>s+'×'+c).join(', ')+')';
+
+function solveDP(target,sizes){
+  const INF=1e9,min=new Int32Array(target+1).fill(INF),last=new Int16Array(target+1).fill(-1);
+  min[0]=0;
+  for(let l=1;l<=target;l++)for(let i=0;i<sizes.length;i++){
+    const len=sizes[i][1];
+    if(len<=l){const c=min[l-len]+1;if(c<min[l]){min[l]=c;last[l]=i;}}
+  }
+  if(min[target]>=INF)return null;
+  const tally={};let cur=target;
+  while(cur>0){const i=last[cur];tally[sizes[i][0]]=(tally[sizes[i][0]]||0)+1;cur-=sizes[i][1];}
+  return tally;
+}
+function solveBB(target,sizes){
+  const s=[...sizes].sort((a,b)=>b[1]-a[1]);
+  let best=null,bestN=Infinity,nodes=0,aborted=false;
+  const cur=new Array(s.length).fill(0);
+  (function go(rem,idx,used){
+    if(aborted)return;
+    if(++nodes>5e6){aborted=true;return;}
+    if(rem===0){if(used<bestN){bestN=used;best=cur.slice();}return;}
+    if(idx>=s.length)return;
+    for(let c=Math.floor(rem/s[idx][1]);c>=0;c--){
+      if(used+c>=bestN)continue;
+      cur[idx]=c;go(rem-c*s[idx][1],idx+1,used+c);
+    }
+    cur[idx]=0;
+  })(target,0,0);
+  if(aborted)return {aborted:true};
+  if(!best)return null;
+  const tally={};best.forEach((c,i)=>{if(c)tally[s[i][0]]=c;});
+  return tally;
+}
+function show(target,tally,sizes){
+  const lens=Object.fromEntries(sizes);
+  const counts=Object.entries(tally).map(([k,c])=>[+k,c]).sort((a,b)=>a[0]-b[0]);
+  const n=counts.reduce((a,[,c])=>a+c,0);
+  const bar=counts.map(([s,c])=>`<span title="${name(s)} ×${c}" style="flex:${lens[s]*c};background:${COLORS[s+2]}"></span>`).join('');
+  const rows=counts.map(([s,c])=>`<tr><td>${s} (${name(s)})</td><td>${lens[s]}</td><td>${c}</td><td>${lens[s]*c}</td></tr>`).join('');
+  $('out').innerHTML=`<div class="big">${fmt(counts)}</div>
+  <div class="note">${n} sheet${n>1?'s':''} laid end to end give exactly ${target} mm.</div>
+  <div class="bar">${bar}</div>
+  <div class="tblwrap"><table><thead><tr><th>Size</th><th>Long edge (mm)</th><th>Sheets</th><th>Total (mm)</th></tr></thead>
+  <tbody>${rows}</tbody><tfoot><tr><td>Total</td><td></td><td>${n}</td><td>${target}</td></tr></tfoot></table></div>`;
+}
+function err(el,msg){$(el).innerHTML=`<div class="err">${msg}</div>`;}
+
+$('go').onclick=()=>{
+  const raw=parseFloat($('len').value),mm=Math.round(raw*parseFloat($('unit').value));
+  const ext=$('ext').checked,sizes=sizesFor(ext);
+  if(!isFinite(mm)||mm<1)return err('out','Please enter a length of at least 1&nbsp;mm.');
+  if(mm>5000000)return err('out','That’s over 5&nbsp;km of paper. Try something a little smaller.');
+  const smallest=sizes[sizes.length-1][1];
+  if(mm<smallest)return err('out',`No exact match possible: ${mm} mm is shorter than the smallest sheet (${name(sizes[sizes.length-1][0])}, ${smallest} mm).`);
+  let t;
+  if($('method').value==='bb'){
+    if(mm>200000)return err('out','Branch &amp; bound is too slow for lengths this large. Switch to dynamic programming.');
+    t=solveBB(mm,sizes);
+    if(t&&t.aborted)return err('out','Branch &amp; bound gave up after too many attempts. Try dynamic programming instead.');
+  }else t=solveDP(mm,sizes);
+  if(!t)return err('out',`No exact match possible: ${mm} mm can’t be built from these sheets.${ext?'':' Try extending the system to A13.'}`);
+  show(mm,t,sizes);
+};
+
+$('batch').onclick=()=>{
+  const a=Math.max(1,Math.floor($('from').value)),b=Math.floor($('to').value),sizes=sizesFor($('ext').checked);
+  if(!(b>=a))return err('bout','“To” must be at least “From”.');
+  if(b>2000000)return err('bout','Please keep the range under 2,000,000&nbsp;mm.');
+  const ok=new Uint8Array(b+1);ok[0]=1;
+  for(let l=1;l<=b;l++)for(const [,len] of sizes)if(len<=l&&ok[l-len]){ok[l]=1;break;}
+  const bad=[];for(let l=a;l<=b;l++)if(!ok[l])bad.push(l);
+  if(!bad.length)return $('bout').innerHTML=`<div style="color:var(--ok);font-weight:600">Every length from ${a} to ${b} mm is possible.</div>`;
+  const shown=bad.slice(0,3000);
+  $('bout').innerHTML=`<div><b>${bad.length}</b> of ${b-a+1} lengths can’t be made. The last impossible length is <b>${bad[bad.length-1]} mm</b>.</div>
+  <div class="chips">${shown.map(n=>`<span>${n}</span>`).join('')}</div>${bad.length>shown.length?'<p class="note">Showing the first 3,000.</p>':''}`;
+};
+
+const cnt={};
+function buildGrid(){
+  $('grid').innerHTML=sizesFor(true).map(([s,l])=>`<div><b>${name(s)}</b><small>size ${s} · ${l} mm${s>10?' · theory':''}</small><input type="number" min="0" step="1" data-s="${s}" placeholder="0"></div>`).join('');
+  document.querySelectorAll('#grid input').forEach(i=>i.oninput=sumUp);
+}
+function sumUp(){
+  const lens=Object.fromEntries(sizesFor(true));let total=0,parts=[];
+  document.querySelectorAll('#grid input').forEach(i=>{
+    const c=Math.max(0,Math.floor(+i.value||0)),s=+i.dataset.s;
+    if(c){total+=c*lens[s];parts.push([s,c]);}
+  });
+  if(!parts.length)return $('rout').innerHTML='<p class="note">Enter a number of sheets above to see the total length.</p>';
+  const n=parts.reduce((a,[,c])=>a+c,0);
+  $('rout').innerHTML=`<div class="big">${total.toLocaleString()} mm</div>
+  <div class="note">${fmt(parts)} · ${n} sheet${n>1?'s':''}</div>
+  <div class="units"><span>${(total/10).toLocaleString(undefined,{maximumFractionDigits:2})} cm</span><span>${(total/1000).toLocaleString(undefined,{maximumFractionDigits:3})} m</span><span>${(total/25.4).toLocaleString(undefined,{maximumFractionDigits:2})} in</span><span>${(total/304.8).toLocaleString(undefined,{maximumFractionDigits:3})} ft</span></div>`;
+}
+$('load').onclick=()=>{
+  const inputs=document.querySelectorAll('#grid input');inputs.forEach(i=>i.value='');
+  const re=/(-?\d+)\s*[×x*]\s*(\d+)/gi,txt=$('paste').value;let m,bad=0,found=0;
+  while((m=re.exec(txt))){
+    const i=document.querySelector(`#grid input[data-s="${m[1]}"]`);
+    if(i){i.value=(+i.value||0)+ +m[2];found++;}else bad++;
+  }
+  sumUp();
+  if(!found)$('rout').innerHTML='<div class="err">Couldn’t read any sizes. Use a format like A(-2×4, -1×1, 6×1), with sizes from -2 (4A0) to 13.</div>';
+  else if(bad)$('rout').insertAdjacentHTML('beforeend',`<p class="note">${bad} entr${bad>1?'ies':'y'} skipped because the size isn’t between -2 and 13.</p>`);
+};
+$('clear').onclick=()=>{document.querySelectorAll('#grid input').forEach(i=>i.value='');$('paste').value='';sumUp();};
+buildGrid();sumUp();
+$('sizes').innerHTML='<thead><tr><th>Size</th><th>Name</th><th>Long edge (mm)</th></tr></thead><tbody>'+
+  sizesFor(true).map(([s,l])=>`<tr><td>${s}</td><td>${name(s)}${s>10?' (theoretical)':''}</td><td>${l}</td></tr>`).join('')+'</tbody>';
+$('go').click();
+</script>
+</body>
+</html>
